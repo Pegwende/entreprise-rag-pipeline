@@ -1,0 +1,20 @@
+[
+  {
+    "doc_id": "HR_POL_001",
+    "department": "Human Resources",
+    "timestamp": "2026-01-15T08:30:00Z",
+    "content": "Workday remote work guidelines state that employees must maintain a core availability window.   Furthermore, expense reports for travel must be submitted within 30 days of the trip completion date. Receipts are mandatory for any single item exceeding $25.00 USD."
+  },
+  {
+    "doc_id": "FIN_REP_042",
+    "department": "Finance",
+    "timestamp": "2026-04-10T14:15:00Z",
+    "content": "Quarterly fiscal budget allocations for cloud infrastructure have increased by 15%. Teams must audit their AWS and Kubernetes resource utilization monthly to ensure compliance with cost-optimization targets."
+  },
+  {
+    "doc_id": "HR_POL_002",
+    "department": "Human Resources",
+    "timestamp": null,
+    "content": "   Parental leave policies allow up to 16 weeks of paid leave for primary caregivers. Notice must be given to People Leaders at least 30 days prior to expected leave start date where possible.   "
+  }
+]
