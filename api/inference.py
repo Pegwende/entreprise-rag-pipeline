@@ -2,8 +2,9 @@ import os
 from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 import openai
+import logging
 
-#Ensure your environment variables are configured (e.g., export OPENAI_API_KEY)
+logger = logging.getLogger(__name__)
 
 class RAGResponseSchema(BaseModel):
     answer: str = Field(description="The synthesized answer derived from the provided context.")
@@ -20,7 +21,7 @@ class EnterpriseInferenceService:
         Simulates information retrieval (vector search matching) over processed chunks.
         In production, this queries a vector database (like Pinecone, pgvector, or Chroma).
         """
-        print(f"[RETRIEVAL] Searching internal knowledge base for query: '{query}'")
+        logger.info(f"[RETRIEVAL] Searching internal knowledge base for query: '{query}'")
 
         # Simple keyword matching heuristic as a baseline for local testing/demo
         scored_chunks = []
@@ -46,14 +47,14 @@ class EnterpriseInferenceService:
         # Defensive Check 1: Empty Retrieval Safegard
         # If the retrieval step returns zero chunks, stop immediately to prevent hallucinations.
         if not context_chunks:
-            print("[WARNING] Retrieval step returned no relevant chunks for the query.")
+            logger.info("[WARNING] Retrieval step returned no relevant chunks for the query.")
             return {
                 "answer": "I am sorry, but I could not find any internal documents relevant to your query to safely answer this question.",
                 "source_documents": [],
                 "confidence_score": 0.0
             }
         try:
-            print("[INFERENCE] Formatting context and invoking LLM inference...")
+            logger.info("[INFERENCE] Formatting context and invoking LLM inference...")
 
             # Format context string from retrieved chunks
             context_text = "\n---\n".join([f"Doc ID: {c['doc_id']} ({c['department']}): {c['chunk_text']}" for c in context_chunks])
@@ -82,7 +83,7 @@ class EnterpriseInferenceService:
         except Exception as e:
             # Defensive Check 2: Graceful Failure Recovery
             # Catch unexpected downstream errors (e.g., API timeouts, retwork drops, malformed JSON)
-            print(f"[ERROR] Inference execution failed: {str(e)}")
+            logger.info(f"[ERROR] Inference execution failed: {str(e)}")
             return {
                 "answer": "An unexpected error occurred while processing your request. Please try again later.",
                 "source_documents": [],

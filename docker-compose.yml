@@ -1,0 +1,15 @@
+services:
+  rag-api:
+    build: .
+    container_name: workday-rag-inference-service
+    ports:
+      - "8001:8001"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-dummy_key_for_testing}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-dummy_key_for_testing}
+    restart: always
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

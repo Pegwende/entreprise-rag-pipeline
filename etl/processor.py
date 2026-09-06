@@ -3,6 +3,15 @@ import pandas as pd
 from typing import List, Dict, Any
 import os
 from dotenv import load_dotenv
+import logging
+
+# Configure logging so info messages print to the console
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -13,7 +22,7 @@ class EnterpriseETLPipeline:
 
     def extract(self) -> pd.DataFrame:
         """Extract raw data from JSON source."""
-        print("[EXTACT] Loading raw enterprise documents ...")
+        logger.info("[EXTRACT] Loading raw enterprise documents ...")
         with open(self.file_path, "r" , encoding='utf-8') as f:
             data = json.load(f)
         self.df = pd.DataFrame(data)
@@ -27,7 +36,7 @@ class EnterpriseETLPipeline:
         if self.df.empty:
             raise ValueError("DataFrame is empty. Run extract() first. ")
 
-        print("[TRANSFORM] Cleaning data and structuring metadata...")
+        logger.info("[TRANSFORM] Cleaning data and structuring metadata...")
 
         #Handle missing timestamps by filling with a default or current date
         self.df['timestamp'] = self.df['timestamp'].fillna("2026-01-01T00:00:00Z")
@@ -52,7 +61,7 @@ class EnterpriseETLPipeline:
         """
         Split text blocks into clean chunks for vector embedding and retrieval.
         """
-        print(f"[TRANSFORM] Chunking documents (max size: {chunk_size} chars)...")
+        logger.info(f"[TRANSFORM] Chunking documents (max size: {chunk_size} chars)...")
         chunked_records = []
 
         for _, row in self.df.iterrows():
@@ -76,7 +85,7 @@ class EnterpriseETLPipeline:
         Simulates or connects to an embedding model to convert text chunks into vectors.
         In production, this calls OpenAI/Gemini embedding endpoints.
         """
-        print("[ML EMBEDDING] Generating vector embeddings for chunks...")
+        logger.info("[ML EMBEDDING] Generating vector embeddings for chunks...")
         
         # For a robust offline fallback or initial test, we can define the structure 
         # that integrates with OpenAI/Gemini API clients.
@@ -91,31 +100,18 @@ class EnterpriseETLPipeline:
                 "embedding": simulated_vector
             })
             
-        print(f"[ML EMBEDDING] Generated embeddings for {len(embedded_records)} chunks.")
+        logger.info(f"[ML EMBEDDING] Generated embeddings for {len(embedded_records)} chunks.")
         return embedded_records 
 
 if __name__ == "__main__":
     pipeline = EnterpriseETLPipeline("data/mock_enterprise_docs.json")
     data = pipeline.extract()
-    print(pipeline.df)
-    print("--------------------------")
     cleaned_df = pipeline.transform_and_clean()
-    print(pipeline.df)
-    print("--------------------------")
     chunks = pipeline.chunk_documents(chunk_size=120)
-    print(f"\nSuccessfully processed and created {len(chunks)} text chunks ready for embedding.")
-    print(chunks[0])
-    print(chunks[1])
-    print(chunks[2])
-    print(chunks[3])
-    print("--------------------------")
+    logger.info(f"\nSuccessfully processed and created {len(chunks)} text chunks ready for embedding.")
     embedded_chunks = pipeline.generate_embeddings(chunks)
-    print("\nFirst embedded record with vector:")
-    print(embedded_chunks[0])
-    print(embedded_chunks[1])
-    print(embedded_chunks[2])
-    print(embedded_chunks[3])
-    print(embedded_chunks[4])
-    print(embedded_chunks[5])
+    logger.info("\nFirst embedded record with vector:")
+    logger.info(embedded_chunks[0])
+
 
 
