@@ -1,8 +1,11 @@
 import os
 from typing import List, Dict, Any
 from pydantic import BaseModel, Field
-import openai
+from google import genai
+from google.genai import types
+import psycopg2
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -13,39 +16,71 @@ class RAGResponseSchema(BaseModel):
 
 class EnterpriseInferenceService:
     def __init__(self):
-        #Initialize client (using OpenAI-compatible or Gemini API client)
-        self.api_key = os.getenv("OPENAI_API_KEY") or os.getenv("GEMINI_API_KEY")
+        # Initialize the official Google Gen AI client with SSL verification bypassed for both sync and async clients
+        self.client = genai.Client(
+            api_key=os.environ.get("GEMINI_API_KEY"),
+            http_options=types.HttpOptions(
+                client_args={"verify": False},
+                async_client_args={"verify": False}
+            )
+        )
+        self.model_name = "gemini-2.5-flash"
  
-    def retrieve_relevant_chunks(self, query: str, chunked_data: List[Dict[str, Any]], top_k: int = 2) -> List[Dict[str, Any]]:
+    def retrieve_relevant_chunks(self, query: str, top_k: int = 2) -> List[Dict[str, Any]]:
         """
-        Simulates information retrieval (vector search matching) over processed chunks.
-        In production, this queries a vector database (like Pinecone, pgvector, or Chroma).
+        Executes a real vector similarity search over PostgreSQL using pgvector and Gemini embeddings.
         """
-        logger.info(f"[RETRIEVAL] Searching internal knowledge base for query: '{query}'")
+        logger.info(f"[RETRIEVAL] Querying pgvector database for query: '{query}'")
 
-        # Simple keyword matching heuristic as a baseline for local testing/demo
-        scored_chunks = []
-        query_terms = query.lower().split()
+        # Generate query embedding using Gemini
+        embed_response = self.client.models.embed_content(
+            model="gemini-embedding-2",
+            contents=query,
+            config=types.EmbedContentConfig(
+                output_dimensionality=768
+            )
+        )
+        query_vector = embed_response.embeddings[0].values
 
-        for chunk in chunked_data:
-            score = sum(1 for term in query_terms if term in chunk['chunk_text'].lower())
-            scored_chunks.append((score, chunk))
+        # Connect to PostgreSQL and query using cosine distance (<=>)
+        conn = psycopg2.connect(
+            dbname=os.getenv("DB_NAME", "enterprise_rag"),
+            user=os.getenv("DB_USER", "postgres"),
+            password=os.getenv("DB_PASSWORD", "postgres"),
+            host=os.getenv("DB_HOST", "localhost"),
+            port=os.getenv("DB_PORT", "5432")
+        )
 
-        #Sort by relevance score descending
-        scored_chunks.sort(key=lambda x: x[0], reverse=True)
+        try:
+            with conn.cursor() as cursor:
+                sql = """
+                    SELECT doc_id, department, chunk_id, chunk_text, 1 - (embedding <=> %s::vector) AS similarity
+                    FROM document_chunks
+                    ORDER BY embedding <=> %s::vector
+                    LIMIT %s;
+                """
+                cursor.execute(sql, (query_vector, query_vector, top_k))
+                rows = cursor.fetchall()
 
-        #Return top-k chunks
-        top_chunks = [item[1] for item in scored_chunks[:top_k]]
-        return top_chunks
+                # Map database rows to expected dictionary structures
+                context_chunks = []
+                for row in rows:
+                    context_chunks.append({
+                        "doc_id": row[0],
+                        "department": row[1],
+                        "chunk_id": row[2],
+                        "chunk_text": row[3],
+                        "similarity": float(row[4])
+                    })
+                return context_chunks
+        finally:
+            conn.close()
 
     def generate_grounded_answer(self, query: str, context_chunks: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
-        Orchestrates the LLM call using retrieved context and enforces a strict schema,
-        with built-in defensive error handling and grounding safeguards.
+        Orchestrates the Gemini API call using retrieved context and enforces a strict structural schema.
         """
 
-        # Defensive Check 1: Empty Retrieval Safegard
-        # If the retrieval step returns zero chunks, stop immediately to prevent hallucinations.
         if not context_chunks:
             logger.info("[WARNING] Retrieval step returned no relevant chunks for the query.")
             return {
@@ -54,7 +89,7 @@ class EnterpriseInferenceService:
                 "confidence_score": 0.0
             }
         try:
-            logger.info("[INFERENCE] Formatting context and invoking LLM inference...")
+            logger.info("[INFERENCE] Formatting context and invoking Gemini inference...")
 
             # Format context string from retrieved chunks
             context_text = "\n---\n".join([f"Doc ID: {c['doc_id']} ({c['department']}): {c['chunk_text']}" for c in context_chunks])
@@ -70,19 +105,23 @@ class EnterpriseInferenceService:
             User Question: {query}
             """
 
-            #Simulated production response structure matching Pydantic schema validation
-            # (In production, replace with actual client.completions or Gemini generate_content call)
-            simulated_response = {
-                "answer": f"Based on internal guidelines retrieved from {', '.join(source_ids)}, policies indicate that standard compliance rules must be strictly followed",
-                "source_documents": source_ids,
-                "confidence_score": 0.95
-            }
+            # Invoke Gemini with Structured Outputs ensuring it adheres to RAGResponseSchema
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=RAGResponseSchema,
+                    temperature=0.1
 
-            return simulated_response
+                ),
+            )
+
+            # Parse the structured JSON response back into a standard dictionary
+            result_data = json.loads(response.text)
+            return result_data
             
         except Exception as e:
-            # Defensive Check 2: Graceful Failure Recovery
-            # Catch unexpected downstream errors (e.g., API timeouts, retwork drops, malformed JSON)
             logger.info(f"[ERROR] Inference execution failed: {str(e)}")
             return {
                 "answer": "An unexpected error occurred while processing your request. Please try again later.",

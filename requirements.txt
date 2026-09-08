@@ -5,3 +5,8 @@ pandas==2.2.1
 openai==1.14.0
 google-genai>=1.0.0
 python-dotenv==1.0.1
+psycopg2-binary
+pgvector
+httpx
+langchain-text-splitters
+certifi
