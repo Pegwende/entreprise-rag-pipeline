@@ -5,6 +5,9 @@ from typing import List
 from api.inference import EnterpriseInferenceService, RAGResponseSchema
 from etl.processor import EnterpriseETLPipeline
 import psycopg2
+import logging
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Workday Enterprise RAG & Inference Pipeline",

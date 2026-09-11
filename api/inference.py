@@ -24,7 +24,7 @@ class EnterpriseInferenceService:
                 async_client_args={"verify": False}
             )
         )
-        self.model_name = "gemini-2.5-flash"
+        self.model_name = "gemini-3.6-flash"
  
     def retrieve_relevant_chunks(self, query: str, top_k: int = 2) -> List[Dict[str, Any]]:
         """
@@ -44,11 +44,11 @@ class EnterpriseInferenceService:
 
         # Connect to PostgreSQL and query using cosine distance (<=>)
         conn = psycopg2.connect(
-            dbname=os.getenv("DB_NAME", "enterprise_rag"),
-            user=os.getenv("DB_USER", "postgres"),
-            password=os.getenv("DB_PASSWORD", "postgres"),
-            host=os.getenv("DB_HOST", "localhost"),
-            port=os.getenv("DB_PORT", "5432")
+            dbname=os.getenv("POSTGRES_DB", "enterprise_rag"),
+            user=os.getenv("POSTGRES_USER", "pegwende"),
+            password=os.getenv("POSTGRES_PASSWORD", ""),
+            host=os.getenv("POSTGRES_HOST", "localhost"),
+            port=os.getenv("POSTGRES_PORT", "5432")
         )
 
         try:
